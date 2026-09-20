@@ -1,0 +1,123 @@
+name: VaultBytes Verify
+description: Check an FHE library commit for correctness with VaultBytes Verify and fail the check on a bad verdict.
+author: VaultBytes Innovations Ltd
+branding:
+  icon: shield
+  color: blue
+
+inputs:
+  token:
+    description: Your VaultBytes Verify token. Pass it from a repository secret, never as a literal. The only required input.
+    required: true
+  api-url:
+    description: >-
+      Service URL. Defaults to the VaultBytes Verify service (set when the service is deployed), or to a VBV_API_URL
+      variable of the workflow. https only.
+    required: false
+    default: ""
+  library:
+    description: >-
+      auto (default: detected from the repository, including an adapter you ship at .vaultbytes/adapter.json),
+      lattigo, openfhe, or custom to require your own adapter and never fall back to one of ours.
+    required: false
+    default: auto
+  suite:
+    description: auto (default) or a suite name.
+    required: false
+    default: auto
+  fail-on:
+    description: >-
+      FAIL (default) fails the check only on a correctness failure; ERROR and REFUSED become warnings. ERROR also
+      fails on ERROR and REFUSED. A timeout, a rejected token or an API error always fails.
+    required: false
+    default: FAIL
+  timeout-seconds:
+    description: How long to wait for the job to finish, including queueing, before failing.
+    required: false
+    default: "4500"
+  poll-interval-seconds:
+    description: First polling interval; it grows 1.5x per poll up to 60 s.
+    required: false
+    default: "10"
+  job-timeout-seconds:
+    description: Time limit for the job inside the sandbox (options.timeout_s, 60 to 3600). Empty = the service default.
+    required: false
+    default: ""
+  worst-case:
+    description: Run the worst-case variant (options.worst_case). Empty = the service default.
+    required: false
+    default: ""
+  report-link:
+    description: >-
+      Show the signed report link in the job summary: auto (only in a private repository), always or never.
+    required: false
+    default: auto
+  artifact-name:
+    description: Name of the uploaded artifact that holds result.json.
+    required: false
+    default: vaultbytes-verify-result
+
+outputs:
+  job-id:
+    description: The job ID.
+    value: ${{ steps.verify.outputs.job-id }}
+  status:
+    description: Final job status (done or error), or the last status seen before a timeout.
+    value: ${{ steps.verify.outputs.status }}
+  verdict:
+    description: PASS, FAIL, ERROR or REFUSED (empty if the job did not finish).
+    value: ${{ steps.verify.outputs.verdict }}
+  decision:
+    description: pass or fail, after applying fail-on.
+    value: ${{ steps.verify.outputs.decision }}
+  result-path:
+    description: Path of result.json on the runner (empty if the job did not finish).
+    value: ${{ steps.verify.outputs.result-path }}
+  report-url:
+    description: Signed, expiring report URL (set only when report-link allows it).
+    value: ${{ steps.verify.outputs.report-url }}
+
+runs:
+  using: composite
+  steps:
+    - id: verify
+      name: Submit and wait
+      shell: bash
+      env:
+        VBV_INPUT_API_URL: ${{ inputs.api-url }}
+        VBV_TOKEN: ${{ inputs.token }}
+        VBV_LIBRARY: ${{ inputs.library }}
+        VBV_SUITE: ${{ inputs.suite }}
+        VBV_FAIL_ON: ${{ inputs.fail-on }}
+        VBV_TIMEOUT_SECONDS: ${{ inputs.timeout-seconds }}
+        VBV_POLL_INTERVAL_SECONDS: ${{ inputs.poll-interval-seconds }}
+        VBV_JOB_TIMEOUT_SECONDS: ${{ inputs.job-timeout-seconds }}
+        VBV_WORST_CASE: ${{ inputs.worst-case }}
+        VBV_REPORT_LINK: ${{ inputs.report-link }}
+      run: |
+        command -v node >/dev/null 2>&1 || { echo "::error title=VaultBytes Verify::node (>= 18) is required on the runner"; exit 2; }
+        node "$GITHUB_ACTION_PATH/src/main.mjs"
+
+    - name: Upload result.json
+      if: always() && steps.verify.outputs.result-path != ''
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: ${{ steps.verify.outputs.result-path }}
+        if-no-files-found: error
+        retention-days: 30
+
+    - name: Enforce the decision
+      if: always()
+      shell: bash
+      env:
+        DECISION: ${{ steps.verify.outputs.decision }}
+        REASON: ${{ steps.verify.outputs.reason }}
+      run: |
+        if [ "$DECISION" = "pass" ]; then
+          echo "VaultBytes Verify: check passed ($REASON)"
+          exit 0
+        fi
+        # Anything other than an explicit pass fails, including a crash that produced no decision.
+        echo "VaultBytes Verify: check failed (${REASON:-no decision was produced})"
+        exit 1

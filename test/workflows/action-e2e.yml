@@ -1,0 +1,97 @@
+# End-to-end test of the Action (client/action.yml) under act, against the stub API started inside the job.
+# Driven by client/test/run-act-tests.sh; not a CI workflow of its own (it lives outside .github/workflows).
+#
+# The "minimal" step is exactly what a customer writes (SPEC v0.3): the action with only `token`. The service URL
+# comes from the workflow-level VBV_API_URL, which here points at the stub. The "configured" step runs instead
+# when an arm sets fail-on or timeout-seconds.
+name: action-e2e
+on:
+  workflow_dispatch:
+    inputs:
+      token:
+        description: Test token; its prefix selects the stub scenario.
+        required: true
+      api-url:
+        description: Becomes the workflow-level VBV_API_URL ("" = use the action's built-in default).
+        required: false
+        default: http://127.0.0.1:18787
+      fail-on:
+        required: false
+        default: ""
+      timeout-seconds:
+        required: false
+        default: ""
+      leak-control:
+        description: When "yes", deliberately print the token (positive control for the leak detector).
+        required: false
+        default: "no"
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    env:
+      VBV_API_URL: ${{ inputs.api-url }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Start the stub API
+        env:
+          ARTIFACT_FORWARD: ${{ env.VBV_ACT_ARTIFACT_FORWARD }}
+        run: |
+          if [ -n "${ARTIFACT_FORWARD:-}" ]; then   # act on Docker Desktop only; see tcp-forward.mjs
+            nohup node client/test/tcp-forward.mjs "${ARTIFACT_FORWARD##*:}" "${ARTIFACT_FORWARD%%:*}" \
+              > "$RUNNER_TEMP/forward.out" 2>&1 &
+          fi
+          nohup node client/test/stub-api.mjs --port 18787 --log "$RUNNER_TEMP/stub-requests.jsonl" \
+            > "$RUNNER_TEMP/stub.out" 2>&1 &
+          for _ in $(seq 1 50); do
+            curl -fsS http://127.0.0.1:18787/v1/health >/dev/null 2>&1 && exit 0
+            sleep 0.2
+          done
+          echo "stub API did not start"; cat "$RUNNER_TEMP/stub.out"; exit 1
+
+      - name: Leak-detector positive control
+        if: inputs.leak-control == 'yes'
+        env:
+          T: ${{ inputs.token }}
+        run: echo "CONTROL-LEAK $T"
+
+      # ---- what a customer writes (SPEC v0.3): only the token
+      - id: minimal
+        if: inputs.fail-on == '' && inputs.timeout-seconds == ''
+        uses: ./client
+        with:
+          token: ${{ inputs.token }}
+
+      # ---- arms that exercise the optional inputs
+      - id: configured
+        if: inputs.fail-on != '' || inputs.timeout-seconds != ''
+        uses: ./client
+        with:
+          token: ${{ inputs.token }}
+          fail-on: ${{ inputs.fail-on }}
+          timeout-seconds: ${{ inputs.timeout-seconds }}
+          poll-interval-seconds: "1"
+
+      - name: Show outputs and summary (test evidence)
+        if: always()
+        env:
+          JOB_ID: ${{ steps.minimal.outputs.job-id || steps.configured.outputs.job-id }}
+          VERDICT: ${{ steps.minimal.outputs.verdict || steps.configured.outputs.verdict }}
+          DECISION: ${{ steps.minimal.outputs.decision || steps.configured.outputs.decision }}
+          RESULT_PATH: ${{ steps.minimal.outputs.result-path || steps.configured.outputs.result-path }}
+          FORM: ${{ steps.minimal.outcome != 'skipped' && 'minimal' || 'configured' }}
+        run: |
+          echo "E2E-OUTPUT form=${FORM} job-id=${JOB_ID} verdict=${VERDICT} decision=${DECISION}"
+          if [ -n "$RESULT_PATH" ] && [ -f "$RESULT_PATH" ]; then
+            # keys and a URI-encoded kit_version only: raw values may be hostile test payloads
+            echo "E2E-RESULT-KEYS $(jq -r '[paths | map(tostring) | join(".")] | join(",")' "$RESULT_PATH")"
+            echo "E2E-KIT-VERSION $(jq -r '.kit_version // "" | @uri' "$RESULT_PATH")"
+          fi
+          echo "E2E-STUB-POSTS $(grep -c '"method":"POST"' "$RUNNER_TEMP/stub-requests.jsonl" 2>/dev/null || true)"
+          echo "E2E-STUB-BODY-KEYS $(grep '"method":"POST"' "$RUNNER_TEMP/stub-requests.jsonl" 2>/dev/null | tail -n 1 | jq -c '.body_keys' 2>/dev/null)"
