@@ -1,5 +1,16 @@
-on: [push, pull_request]
+# Pin the Action to a full commit SHA of a release (see the release notes), never to a tag or branch name.
+# Replace the 40-character value below with the SHA published for the release you reviewed.
+on:
+  push:
+  pull_request:          # never pull_request_target or workflow_run: the Action refuses them
+
+permissions:
+  contents: read         # the Action needs nothing else
+
 jobs:
   verify:
     runs-on: ubuntu-latest
-    steps: [{uses: BAder82t/verify-action@v0, with: {token: "${{ secrets.VBV_TOKEN }}"}}]
+    steps:
+      - uses: BAder82t/verify-action@0000000000000000000000000000000000000000 # v0.2
+        with:
+          token: ${{ secrets.VBV_TOKEN }}

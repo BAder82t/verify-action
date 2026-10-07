@@ -10,6 +10,7 @@ import { join, dirname } from "node:path";
 import { after, before, describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 
+import { DEFAULT_API_URL } from "../src/service-url.mjs";
 import { conformance, customerView, decide, escapeCommand, jobBody, md, nextDelayMs, parseApiUrl, ranSomething, readConfig, renderSummary, run, safeReportUrl, scrub } from "../src/verify.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -163,9 +164,11 @@ describe("pure helpers", () => {
     assert.deepEqual(chosen, { target: jobBody(cfg).target, library: "openfhe", suite: "ckks-core-v0", options: { timeout_s: 600 } });
   });
 
-  it("resolves api-url: input, then VBV_API_URL, then the deploy-time default (refused while a placeholder)", () => {
+  it("resolves api-url: input, then VBV_API_URL, then the built-in default (https, never a placeholder)", () => {
     const { env } = baseEnv({ VBV_TOKEN: "t0k3n-abcdef" });
-    assert.throws(() => readConfig(env), /service URL is not configured/);
+    assert.equal(readConfig(env).apiUrl, parseApiUrl(DEFAULT_API_URL));
+    assert.match(DEFAULT_API_URL, /^https:\/\//);
+    assert.ok(!new URL(DEFAULT_API_URL).hostname.endsWith(".invalid"));
     assert.equal(readConfig({ ...env, VBV_API_URL: "https://env.example" }).apiUrl, "https://env.example");
     assert.equal(readConfig({ ...env, VBV_API_URL: "https://env.example", VBV_INPUT_API_URL: "https://input.example" }).apiUrl, "https://input.example");
   });

@@ -19,15 +19,27 @@ and tokens are issued to pilot users. Ask for one at <https://vaultbytes.com/ver
 ## Use
 
 Add your token as the repository secret `VBV_TOKEN`, then commit
-`.github/workflows/vaultbytes-verify.yml`:
+`.github/workflows/vaultbytes-verify.yml`. Pin the Action to the full commit SHA of a release, and give the
+workflow a read-only token:
 
 ```yaml
-on: [push, pull_request]
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
 jobs:
   verify:
     runs-on: ubuntu-latest
-    steps: [{uses: BAder82t/verify-action@v0, with: {token: "${{ secrets.VBV_TOKEN }}"}}]
+    steps:
+      - uses: BAder82t/verify-action@<40-character commit SHA of the release> # v0.2
+        with:
+          token: ${{ secrets.VBV_TOKEN }}
 ```
+
+A tag such as `v0.2` can be moved, a commit SHA cannot. The release page shows the SHA to use.
 
 Everything else is detected: the repository and commit come from the push, and the library and its version are
 detected from your tree. The test programs, the parameters and the tolerance are chosen by the service and fixed
@@ -37,6 +49,13 @@ per version, so a run cannot be tuned into passing.
 
 See [`action.yml`](action.yml). `token` is the only required one. `library`, `suite`, `fail-on`, `api-url`,
 `timeout-seconds`, `poll-interval-seconds` and `job-timeout-seconds` all have defaults.
+
+## Security
+
+The Action holds your service token and runs in your CI, so how it is pinned, what it may do and what it talks to
+are all documented in [`SECURITY.md`](SECURITY.md): pinning to a commit SHA, the minimal `contents: read`
+permission, why it refuses the `pull_request_target` and `workflow_run` events, the one host it contacts and exactly
+what it sends, and how to verify a release's checksum and signed provenance.
 
 ## What a pass means, and what it does not
 

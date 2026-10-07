@@ -30,9 +30,21 @@ export class ActionError extends Error {
 
 // ---------------------------------------------------------------- configuration
 
+// Events on which a workflow can run code from an untrusted fork while holding the repository's secrets. This
+// Action refuses to start on them, before it reads the token, so no workflow configuration can hand the service
+// token to a pull request author. `pull_request` is fine: GitHub withholds secrets from fork pull requests.
+export const UNSAFE_EVENTS = new Set(["pull_request_target", "workflow_run"]);
+
 export function readConfig(env) {
+  const event = (env.GITHUB_EVENT_NAME ?? "").trim();
+  if (UNSAFE_EVENTS.has(event)) {
+    throw new ActionError("config", `refusing to run on the '${event}' event: it can run with secrets while checking out code from a fork. Use 'push' or 'pull_request' instead.`);
+  }
   const token = env.VBV_TOKEN ?? "";
-  if (token === "") throw new ActionError("config", "input 'token' is empty: pass it from a repository secret, e.g. token: ${{ secrets.VBV_TOKEN }}");
+  if (token === "") {
+    const hint = event === "pull_request" ? " (a pull request from a fork does not receive repository secrets, so this check cannot run for it)" : "";
+    throw new ActionError("config", `input 'token' is empty: pass it from a repository secret, e.g. token: \${{ secrets.VBV_TOKEN }}${hint}`);
+  }
   if (token.length > 4096 || /[\s\x00-\x1f\x7f]/.test(token)) throw new ActionError("config", "input 'token' is malformed (whitespace or control characters)");
 
   // api-url: the input, else a VBV_API_URL variable of the workflow, else the service URL baked in at deploy time
