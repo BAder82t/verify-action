@@ -1,0 +1,7 @@
+Copyright (c) 2026 VaultBytes Innovations Ltd. All rights reserved.
+
+This source is published so that the GitHub Action can be referenced from a workflow
+(uses: BAder82t/verify-action@<commit SHA>) and so that its security properties can be inspected.
+
+No licence is granted to copy, modify, redistribute or sublicense it, or to use it in any other way, except by
+written agreement with VaultBytes Innovations Ltd. Contact: https://vaultbytes.com

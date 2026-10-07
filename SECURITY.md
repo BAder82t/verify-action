@@ -2,7 +2,7 @@
 
 ## Reporting a problem
 
-Report a vulnerability in this Action or the service to <https://vaultbytes.com/contact.html>, topic "Security". Please do not open a public issue for it. We aim to acknowledge a report within three working days.
+Report a vulnerability in this Action privately through GitHub: open the **Security** tab of this repository and choose **Report a vulnerability**. Please do not open a public issue for it. We aim to acknowledge a report within three working days.
 
 ## What this Action handles
 

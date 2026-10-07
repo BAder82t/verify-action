@@ -72,4 +72,4 @@ back as a check on the commit.
 
 ---
 
-© 2026 VaultBytes Innovations Ltd. Contact <https://vaultbytes.com> for licence terms.
+© 2026 VaultBytes Innovations Ltd. All rights reserved, see [`LICENSE`](LICENSE). Contact <https://vaultbytes.com> for licence terms.
