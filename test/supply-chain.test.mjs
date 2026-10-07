@@ -93,3 +93,16 @@ describe("workflows and action metadata", () => {
     }
   });
 });
+
+describe("release trigger", () => {
+  const rel = readFileSync(join(ROOT, ".github", "workflows", "release.yml"), "utf8");
+  // GitHub tag filters are globs: '.' is literal, '+' repeats the previous character or class, '[0-9]' is a class
+  const globToRe = (g) => new RegExp("^" + g.replace(/\./g, "\\.") + "$");
+  const patterns = [...rel.matchAll(/tags:\s*\[(.*)\]\s*$/gm)].flatMap((m) => [...m[1].matchAll(/"([^"]+)"/g)].map((x) => x[1]));
+  it("fires on a three-part version tag and not on a branch-like or pre-release name", () => {
+    assert.ok(patterns.length > 0, "no tag filter found");
+    const fires = (t) => patterns.some((p) => globToRe(p).test(t));
+    assert.ok(fires("v0.2.1") && fires("v12.0.30"));
+    assert.ok(!fires("v0.2") && !fires("v0.2.1-rc1") && !fires("main"));
+  });
+});

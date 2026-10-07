@@ -34,12 +34,12 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     steps:
-      - uses: BAder82t/verify-action@<40-character commit SHA of the release> # v0.2
+      - uses: BAder82t/verify-action@<40-character commit SHA of the release> # v0.2.1
         with:
           token: ${{ secrets.VBV_TOKEN }}
 ```
 
-A tag such as `v0.2` can be moved, a commit SHA cannot. The release page shows the SHA to use.
+A tag such as `v0.2.1` can be moved, a commit SHA cannot. The release page shows the SHA to use.
 
 Everything else is detected: the repository and commit come from the push, and the library and its version are
 detected from your tree. The test programs, the parameters and the tolerance are chosen by the service and fixed

@@ -11,6 +11,6 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     steps:
-      - uses: BAder82t/verify-action@0000000000000000000000000000000000000000 # v0.2
+      - uses: BAder82t/verify-action@0000000000000000000000000000000000000000 # v0.2.1
         with:
           token: ${{ secrets.VBV_TOKEN }}
